@@ -1,22 +1,44 @@
 rules_version = '2';
+// admins/{uid}: Console-managed administrator allowlist.
+// users/{uid}/seasons/{season}: private season id and serialized payload.
+// publication/current: administrator-published, serialized public summary.
 service cloud.firestore {
   match /databases/{database}/documents {
-    function allowed(uid) {
+    function isAdmin() {
       return request.auth != null
-        && request.auth.uid == uid
         && request.auth.token.firebase.sign_in_provider == 'google.com'
-        && exists(/databases/$(database)/documents/admins/$(uid));
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function ownsArchive(uid) {
+      return request.auth != null && request.auth.uid == uid && isAdmin();
+    }
+    function validSeason(season) {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'payload'])
+        && data.keys().hasOnly(['id', 'payload'])
+        && data.id == season
+        && data.payload is string
+        && data.payload.size() <= 720000;
+    }
+    function validPublication() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['payload'])
+        && data.keys().hasOnly(['payload'])
+        && data.payload is string
+        && data.payload.size() > 0
+        && data.payload.size() <= 120000;
     }
     match /admins/{uid} {
       allow get: if request.auth != null && request.auth.uid == uid;
     }
     match /users/{uid}/seasons/{season} {
-      allow read, delete: if allowed(uid);
-      allow create, update: if allowed(uid)
-        && request.resource.data.keys().hasOnly(['id','payload'])
-        && request.resource.data.id == season
-        && request.resource.data.payload is string
-        && request.resource.data.payload.size() <= 720000;
+      allow read, delete: if ownsArchive(uid);
+      allow create, update: if ownsArchive(uid) && validSeason(season);
+    }
+    match /publication/current {
+      allow get: if true;
+      allow create, update: if isAdmin() && validPublication();
+      allow delete: if isAdmin();
     }
   }
 }

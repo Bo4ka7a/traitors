@@ -160,3 +160,17 @@ footer span:first-child { letter-spacing:.1em; }
   .rule { grid-template-columns:minmax(0,1fr); }
 }
 @media(prefers-reduced-motion:reduce) { *, *::before, *::after { transition:none!important; animation:none!important; } }
+
+.public-shell { display:block; }
+.public-shell main { max-width:1120px; }
+.public-bar { justify-content:space-between; }
+.public-hero { min-height:210px; }
+.public-shell footer { margin-top:0; }
+.action-link,.public-shortcut { display:inline-flex; align-items:center; gap:8px; text-decoration:none; border:1px solid var(--border); border-radius:8px; color:var(--gold); background:var(--inset); }
+.action-link { padding:.55rem .8rem; white-space:nowrap; }
+.action-link:hover,.public-shortcut:hover { border-color:var(--gold); }
+@media (max-width:380px) {
+  .public-bar .brand b { font-size:14px; }
+  .public-bar .brand { padding:0; }
+  .public-bar .action-link { padding:.45rem .55rem; font-size:12px; }
+}

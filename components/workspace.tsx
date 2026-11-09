@@ -1,6 +1,7 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowRight, CalendarDays, ChevronDown, Cloud, CloudOff, Coffee, Database, FlaskConical, Gavel, LayoutDashboard, Layers3, LockKeyhole, LogOut, Menu, Settings2, Shield, Users, X } from "lucide-react";
+import { Activity, ArrowRight, CalendarDays, ChevronDown, Cloud, CloudOff, Coffee, Database, FlaskConical, Gavel, Globe, LayoutDashboard, Layers3, LockKeyhole, LogOut, Menu, Settings2, Shield, Users, X } from "lucide-react";
 import { episodesThrough, forecasts, publicInput } from "../lib/model";
 import { baseline } from "../lib/rules";
 import { login, logout } from "../lib/storage";
@@ -9,6 +10,7 @@ import { Breakfasts, Voting } from "./events";
 import { Combinations, Dashboard, Evaluation, PlayerDetail, Rankings } from "./insights";
 import { EpisodePicker, Episodes, Participants } from "./records";
 import { useSession } from "./session";
+import { PublicationSettings } from "./publication-settings";
 import { Settings } from "./settings";
 import { Brand, Empty } from "./ui";
 
@@ -21,6 +23,7 @@ const nav = [
   { key: "ranking", label: "Класация", icon: Activity },
   { key: "combos", label: "Комбинации", icon: Layers3 },
   { key: "evaluation", label: "Проверка на теорията", icon: FlaskConical },
+  { key: "publication", label: "Публикуване", icon: Globe },
   { key: "settings", label: "Настройки", icon: Settings2 },
 ] as const;
 type Page = typeof nav[number]["key"];
@@ -94,7 +97,7 @@ export function Workspace() {
         {session.mode === "signed-out" && <button className="primary" onClick={() => login().catch(e => session.setError(e.message))}>Вход с Google <ArrowRight size={17}/></button>}
         {session.user && <button onClick={() => logout().catch(e => session.setError(e.message))}>Изход</button>}
         {session.error && <p className="danger" role="alert">{session.error}</p>}
-      </Empty></div></div>;
+      </Empty></div><Link className="action-link" href="/">Публична страница</Link></div>;
   }
 
   return <div className="shell" data-theme={light ? "light" : "dark"}>
@@ -115,6 +118,7 @@ export function Workspace() {
         <button className="mobile-menu icon-button" aria-label="Отвори менюто" aria-expanded={menu} onClick={() => setMenu(!menu)}><Menu size={23}/></button>
         <div className="breadcrumb"><span>Анализи</span><span>/</span><b>{current.label}</b></div>
         <div className="topbar-actions">
+          <Link className="public-shortcut icon-button" href="/" aria-label="Публична страница" title="Публична страница"><Globe size={17}/></Link>
           <span className="sync" role="status">{local ? <Database size={15}/> : session.cached ? <CloudOff size={15}/> : <Cloud size={15}/>}
             <span>{session.saving ? "Запазване…" : session.cached ? "Офлайн · кеш" : local ? "Локален режим" : "Синхронизирано"}</span></span>
           <div className="season-picker"><select aria-label="Избран сезон" value={season.id} onChange={e => selectSeason(e.target.value)}>
@@ -137,6 +141,7 @@ export function Workspace() {
           {page === "ranking" && <Rankings season={season} history={history} number={number} open={setDetail}/>}
           {page === "combos" && <Combinations season={season} number={number || 1}/>}
           {page === "evaluation" && <Evaluation season={season}/>}
+          {page === "publication" && <PublicationSettings season={season} uid={session.user?.uid}/>}
           {page === "settings" && <Settings season={season} seasons={seasons} save={save} commit={session.save} select={selectSeason} light={light} theme={toggleTheme} fail={session.setError}/>}
         </fieldset>
         {detail && <><button className="dialog-overlay" aria-label="Затвори досието" onClick={() => setDetail(null)}/><PlayerDetail season={season} id={detail} number={number || 1} history={history} close={() => setDetail(null)}/></>}

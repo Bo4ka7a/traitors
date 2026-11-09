@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { collection, doc, getDocFromServer, getFirestore, onSnapshot, runTransaction } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocFromServer, getFirestore, onSnapshot, runTransaction } from "firebase/firestore";
+import { makePublication, publicationSchema } from "./publication";
 import { validateSeason } from "./validation";
 import type { Season } from "./types";
 
@@ -82,4 +83,24 @@ export async function commit(uid: string | null, changes: Change[]) {
       else tx.delete(refs[i]);
     });
   });
+}
+
+export async function readPublication() {
+  const snapshot = await getDocFromServer(doc(services().db, "publication", "current"));
+  return snapshot.exists() ? publicationSchema.parse(JSON.parse(snapshot.data().payload)) : null;
+}
+
+export async function publishSeason(uid: string, seasonId: string, through: number) {
+  const { db } = services();
+  return runTransaction(db, async tx => {
+    const season = await tx.get(doc(db, "users", uid, "seasons", seasonId));
+    if (!season.exists()) throw new Error("Сезонът не е намерен.");
+    const publication = makePublication(validateSeason(JSON.parse(season.data().payload)), through);
+    tx.set(doc(db, "publication", "current"), { payload: JSON.stringify(publication) });
+    return publication;
+  });
+}
+
+export function unpublishSeason() {
+  return deleteDoc(doc(services().db, "publication", "current"));
 }

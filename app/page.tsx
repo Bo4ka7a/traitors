@@ -1,2 +1,2 @@
-import { Workspace } from "../components/workspace";
-export default function Page() { return <Workspace />; }
+import { PublicArchive } from "../components/public-archive";
+export default function Page() { return <PublicArchive />; }
