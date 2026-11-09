@@ -1,6 +1,6 @@
 # Публикуване на The Traitors Analytics
 
-Във Vercel е създаден отделен проект **the-traitors-analytics** с Next.js и Node.js 24.x. Запазеният production домейн е `the-traitors-analytics.vercel.app`. Адресът започва да обслужва приложението след успешното първо production публикуване.
+Във Vercel е създаден отделен проект **the-traitors-analytics** с Next.js и Node.js 24.x. Приложението е достъпно на [the-traitors-analytics.vercel.app](https://the-traitors-analytics.vercel.app). Проектът е свързан с [Bo4ka7a/traitors](https://github.com/Bo4ka7a/traitors).
 
 ## 1. Firebase
 
