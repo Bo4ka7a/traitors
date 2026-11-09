@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { CalendarDays, Plus, Users, Pencil, Trash2, LockKeyhole } from "lucide-react";
-import { episodesThrough, freshEpisode, publicFacts, statusAt } from "../lib/model";
+import { Plus, Users, Pencil, Trash2, LockKeyhole } from "lucide-react";
+import { episodesThrough, publicFacts, statusAt } from "../lib/model";
 import { roleNames, statusNames, type Episode, type Participant, type PublicFact, type Exit, type RolePeriod, type Season } from "../lib/types";
 import { Avatar, Empty, Field, Heading, Panel, PersonSelect, RoleSelect, type SaveSeason } from "./ui";
 
@@ -13,21 +13,8 @@ export function EpisodePicker({ season, number, change }: { season: Season; numb
 }
 export type EditEpisode = (episode: Episode) => Promise<boolean>;
 
-export function Episodes({ season, episode, setNumber, edit, go, forceAdd, clearForce }: {
-  season: Season; episode?: Episode; setNumber: (n: number) => void; edit: EditEpisode; go: (page: "breakfast" | "votes") => void; forceAdd: boolean; clearForce: () => void;
-}) {
-  const [adding, setAdding] = useState(forceAdd || !episode);
-  const next = Math.max(0, ...season.episodes.map(e => e.number)) + 1;
-  return <>
-    <Heading title="Епизоди" description="Записвайте събитията по реда на излъчване." action={<button className="primary" onClick={() => setAdding(true)}><Plus size={18}/> Добави епизод</button>}/>
-    {adding && <Panel title="Нов епизод"><EpisodeForm episode={freshEpisode(next)} cancel={() => { setAdding(false); if (forceAdd) clearForce(); }} save={async e => {
-      if (await edit(e)) { setAdding(false); setNumber(e.number); if (forceAdd) clearForce(); }
-    }}/></Panel>}
-    {episode ? <>
-      <div className="toolbar"><EpisodePicker season={season} number={episode.number} change={setNumber}/>
-        <button onClick={() => go("breakfast")}>Закуска</button><button onClick={() => go("votes")}>Кръгла маса</button></div>
-      <Panel title={"Епизод " + episode.number}><EpisodeForm key={JSON.stringify([episode.id,episode.number,episode.date,episode.notes,episode.events])}
-        episode={episode} save={async e => { if (await edit(e)) setNumber(e.number); }}/></Panel>
+export function EpisodeOutcomes({ season, episode, edit }: { season: Season; episode: Episode; edit: EditEpisode }) {
+  return (
       <div className="two">
         <Panel title="Убийства и напускания">
           {episode.exits.map(x => <ExitForm key={JSON.stringify(x)} value={x} season={season} episode={episode}
@@ -44,21 +31,19 @@ export function Episodes({ season, episode, setNumber, edit, go, forceAdd, clear
             submit={row => edit({ ...episode, facts: [...episode.facts,row] })}/>
         </Panel>
       </div>
-    </> : !adding && <Panel title="Архив"><Empty icon={CalendarDays} title="Няма записани епизоди" detail="Добавете номер и дата на първия епизод."/></Panel>}
-  </>;
+  );
 }
-function EpisodeForm({ episode, save, cancel }: { episode: Episode; save: (e: Episode) => Promise<void>; cancel?: () => void }) {
+
+export function EpisodeDetails({ episode, save }: { episode: Episode; save: EditEpisode }) {
   const [draft, set] = useState(episode);
-  return <form className="stack" onSubmit={e => { e.preventDefault(); void save({ ...episode, number: draft.number, date: draft.date, notes: draft.notes, events: draft.events }); }}>
-    <div className="fields">
-      <Field label="Номер"><input required type="number" min={1} max={999} value={draft.number || ""} onChange={e => set({ ...draft, number: Number(e.target.value) })}/></Field>
-      <Field label="Дата на излъчване"><input type="date" value={draft.date} onChange={e => set({ ...draft, date: e.target.value })}/></Field>
-    </div>
+  return <form className="stack" onSubmit={e => { e.preventDefault(); void save({ ...episode, date: draft.date, notes: draft.notes, events: draft.events }); }}>
+    <Field label="Дата на излъчване"><input type="date" value={draft.date} onChange={e => set({ ...draft, date: e.target.value })}/></Field>
     <Field label="Бележки"><textarea value={draft.notes} maxLength={8000} onChange={e => set({ ...draft, notes: e.target.value })}/></Field>
     <Field label="Допълнителни събития"><textarea value={draft.events} maxLength={8000} onChange={e => set({ ...draft, events: e.target.value })}/></Field>
-    <div className="toolbar"><button type="submit" className="primary">Запази епизода</button>{cancel && <button type="button" onClick={cancel}>Отказ</button>}</div>
+    <div><button type="submit">Запази подробностите</button></div>
   </form>;
 }
+
 function ExitForm({ value, season, episode, submit, remove }: { value?: Exit; season: Season; episode: Episode; submit: (x: Exit) => Promise<boolean>; remove?: () => Promise<boolean> }) {
   const [draft, set] = useState<Exit>(value ?? { id: "", player: "", method: "murdered", timing: "before", role: null, notes: "" });
   const people = season.participants.filter(p => p.joined <= episode.number && (p.id === value?.player || statusAt(season, p.id, episode.number).status === "active"));
@@ -70,24 +55,27 @@ function ExitForm({ value, season, episode, submit, remove }: { value?: Exit; se
       <select aria-label="Метод на напускане" value={draft.method} onChange={e => set({ ...draft, method: e.target.value as Exit["method"] })}><option value="murdered">Убит</option><option value="left">Напуснал</option></select>
       <select aria-label="Момент на напускане" value={draft.timing} onChange={e => set({ ...draft, timing: e.target.value as Exit["timing"] })}><option value="before">Преди кръглите маси</option><option value="after">След кръглите маси</option></select>
       <RoleSelect value={draft.role ?? ""} change={role => set({ ...draft, role: role || null })}/></div>
-    <input aria-label="Бележка за напускане" placeholder="Бележка" value={draft.notes} maxLength={8000} onChange={e => set({ ...draft, notes: e.target.value })}/>
+
     <div className="toolbar"><button type="submit" disabled={!draft.player}>{value ? "Запази" : "Добави напускане"}</button>{remove && <button type="button" onClick={remove}>Премахни</button>}</div>
   </form>;
 }
 function FactForm({ value, people, number, submit, remove }: { value?: PublicFact; people: Participant[]; number: number; submit: (x: PublicFact) => Promise<boolean>; remove?: () => Promise<boolean> }) {
-  const initial: PublicFact = { id: "", player: "", role: "traitor", kind: "confirmation", from: number };
+  const initial: Omit<PublicFact, "role"> & { role: PublicFact["role"] | "" } =
+    { id: "", player: "", role: "", kind: "confirmation", from: number };
   const [draft, set] = useState(value ?? initial);
   return <form className="record stack" onSubmit={async e => {
-    e.preventDefault(); if (!draft.player) return;
-    if (await submit({ ...draft, id: draft.id || crypto.randomUUID() }) && !value) set(initial);
+    e.preventDefault(); if (!draft.player || !draft.role) return;
+    if (await submit({ ...draft, role: draft.role, id: draft.id || crypto.randomUUID() }) && !value) set(initial);
   }}>
-    <div className="fields"><PersonSelect people={people.filter(p => p.joined <= number)} label="Участник с публична роля" value={draft.player} change={player => set({ ...draft, player })}/>
-      <select aria-label="Вид на публичния факт" value={draft.kind} onChange={e => set({ ...draft, kind: e.target.value as PublicFact["kind"], role: e.target.value === "recruitment" ? "traitor" : draft.role })}>
+    <div className="fields"><PersonSelect people={people.filter(p => p.joined <= number)} label="Участник с публична роля" value={draft.player} change={player => set({ ...draft, player, from: Math.max(draft.from, people.find(p => p.id === player)?.joined ?? 1) })}/>
+      <select aria-label="Вид на публичния факт" value={draft.kind} onChange={e => set({ ...draft, kind: e.target.value as PublicFact["kind"], role: e.target.value === "recruitment" ? "traitor" : value?.role ?? "" })}>
         <option value="confirmation">Потвърждение</option><option value="recruitment">Вербуване</option></select>
-      {draft.kind !== "recruitment" && <RoleSelect value={draft.role} change={role => { if (role) set({ ...draft, role }); }}/>}
-      <Field label="Роля от епизод"><input required type="number" min={1} max={number} value={draft.from || ""} onChange={e => set({ ...draft, from: Number(e.target.value) })}/></Field>
+      {draft.kind !== "recruitment" && <RoleSelect value={draft.role} change={role => set({ ...draft, role })}/>}
+      <Field label="Роля от епизод"><select value={draft.from} onChange={e => set({ ...draft, from: Number(e.target.value) })}>
+        {Array.from({ length: number }, (_, i) => <option key={i+1} value={i+1} disabled={i+1 < (people.find(p => p.id === draft.player)?.joined ?? 1)}>Епизод {i+1}</option>)}
+      </select></Field>
     </div>
-    <div className="toolbar"><button type="submit" disabled={!draft.player}>{value ? "Запази" : "Добави публичен факт"}</button>{remove && <button type="button" onClick={remove}>Премахни</button>}</div>
+    <div className="toolbar"><button type="submit" disabled={!draft.player || !draft.role}>{value ? "Запази" : "Добави публичен факт"}</button>{remove && <button type="button" onClick={remove}>Премахни</button>}</div>
   </form>;
 }
 
@@ -144,8 +132,8 @@ function RoleForm({ value, people, submit, remove }: { value?: RolePeriod; peopl
   const initial: RolePeriod = { id: "", player: "", role: "faithful", from: 1 };
   const [draft, set] = useState(value ?? initial);
   return <form className="record toolbar" onSubmit={async e => {
-    e.preventDefault(); if (!draft.player) return;
-    if (await submit({ ...draft, id: draft.id || crypto.randomUUID() }) && !value) set(initial);
+    e.preventDefault(); if (!draft.player || !draft.role) return;
+    if (await submit({ ...draft, role: draft.role, id: draft.id || crypto.randomUUID() }) && !value) set(initial);
   }}>
     <PersonSelect people={people} value={draft.player} change={player => set({ ...draft, player })} label="Участник с тайна роля"/>
     <RoleSelect value={draft.role} label="Действителна роля" change={role => { if (role) set({ ...draft, role }); }}/>

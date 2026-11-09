@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Download, FileUp, Moon, Plus, Sun, Trash2 } from "lucide-react";
-import { baseline, newSeason, rules } from "../lib/rules";
+import { Download, FileUp, Moon, Sun, Trash2 } from "lucide-react";
+import { baseline, rules } from "../lib/rules";
 import { backup, parseBackup } from "../lib/validation";
 import type { Change } from "../lib/storage";
 import type { Season } from "../lib/types";
@@ -11,7 +11,6 @@ export function Settings({ season, seasons, save, commit, select, light, theme, 
   season: Season; seasons: Season[]; save: SaveSeason; commit: (changes: Change[]) => Promise<boolean>;
   select: (id: string) => void; light: boolean; theme: () => void; fail: (s: string) => void;
 }) {
-  const [newTitle, setNewTitle] = useState("");
   const [imported,setImported] = useState<Season[]>([]);
   const [reset,setReset] = useState("");
   function download() {
@@ -26,19 +25,12 @@ export function Settings({ season, seasons, save, commit, select, light, theme, 
     <Heading title="Настройки" description="Сезони, правила за точкуване, експерименти и резервни копия."
       action={<button onClick={theme}>{light ? <Moon size={17}/> : <Sun size={17}/>} {light ? "Тъмна тема" : "Светла тема"}</button>}/>
     <div className="two">
-      <Panel title="Сезони">
+      <Panel title="Сезон">
         <div className="stack">
           <SettingsField key={season.id + season.title} label="Име на избрания сезон" value={season.title} save={title => save({ ...season,title })}/>
           <SettingsField key={season.id + season.initialTraitors} label="Начален брой предатели" type="number" min={0} max={100} value={String(season.initialTraitors)}
             save={value => save({ ...season, initialTraitors: Number(value) })}/>
-          <form className="toolbar" onSubmit={async e => {
-            e.preventDefault();
-            const next = newSeason(newTitle);
-            if (await commit([{ after: next }])) { select(next.id); setNewTitle(""); }
-          }}>
-            <input required maxLength={120} aria-label="Име на новия сезон" placeholder="Име на новия сезон" value={newTitle} onChange={e => setNewTitle(e.target.value)}/>
-            <button type="submit"><Plus size={17}/> Нов сезон</button>
-          </form>
+
         </div>
       </Panel>
       <Panel title="Режим на точкуване">

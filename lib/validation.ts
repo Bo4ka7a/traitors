@@ -11,6 +11,7 @@ const round = z.strictObject({
   votes: z.record(id, z.strictObject({ target: id.nullable(), revealed: number.nullable(), cast: number.nullable() })),
 });
 export const seasonSchema = z.strictObject({
+  castPreset: z.literal("btv-2026").optional(),
   id, title: z.string().trim().min(1).max(120), initialTraitors: z.number().int().min(0).max(100),
   participants: z.array(z.strictObject({ id, name: z.string().trim().min(1).max(120), photo: z.union([z.literal(""), z.url({ protocol: /^https?$/ }).max(1000)]), joined: number })).max(100),
   model: z.strictObject({ firstVote: z.boolean(), allowBroadcastBreakfast: z.boolean(),

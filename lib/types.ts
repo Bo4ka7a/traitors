@@ -14,6 +14,6 @@ export type Episode = { id: string; number: number; date: string; notes: string;
 export type PublicSeason = { participants: Participant[]; episodes: Episode[]; model: Model; initialTraitors: number };
 export type RolePeriod = { id: string; player: string; from: number; role: Role };
 export type Hypothesis = { enabled: boolean; required: string[]; excluded: string[]; breakfastLimit: boolean };
-export type Season = PublicSeason & { id: string; title: string; privateRoles: RolePeriod[]; hypothesis: Hypothesis };
+export type Season = PublicSeason & { id: string; title: string; castPreset?: "btv-2026"; privateRoles: RolePeriod[]; hypothesis: Hypothesis };
 export const roleNames: Record<Role, string> = { traitor: "Предател", faithful: "Праведен" };
 export const statusNames = { active: "Активен", banished: "Прогонен", murdered: "Убит", left: "Напуснал" };

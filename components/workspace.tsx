@@ -1,14 +1,15 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowRight, CalendarDays, ChevronDown, Cloud, CloudOff, Coffee, Database, FlaskConical, Gavel, Globe, LayoutDashboard, Layers3, LockKeyhole, LogOut, Menu, Settings2, Shield, Users, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Activity, ArrowRight, CalendarDays, ChevronDown, Cloud, CloudOff, Database, FlaskConical, Globe, LayoutDashboard, Layers3, LockKeyhole, LogOut, Menu, Settings2, Shield, Users, X } from "lucide-react";
+import { addBtvCast, btvCastSource, btvSeasonTitle } from "../lib/cast";
 import { episodesThrough, forecasts, publicInput } from "../lib/model";
 import { baseline } from "../lib/rules";
 import { login, logout } from "../lib/storage";
 import type { Episode, Season } from "../lib/types";
-import { Breakfasts, Voting } from "./events";
+import { Episodes } from "./episodes";
 import { Combinations, Dashboard, Evaluation, PlayerDetail, Rankings } from "./insights";
-import { EpisodePicker, Episodes, Participants } from "./records";
+import { EpisodePicker, Participants } from "./records";
 import { useSession } from "./session";
 import { PublicationSettings } from "./publication-settings";
 import { Settings } from "./settings";
@@ -18,8 +19,6 @@ const nav = [
   { key: "dashboard", label: "Начало", icon: LayoutDashboard },
   { key: "participants", label: "Участници", icon: Users },
   { key: "episodes", label: "Епизоди", icon: CalendarDays },
-  { key: "votes", label: "Кръгла маса", icon: Gavel },
-  { key: "breakfast", label: "Закуска", icon: Coffee },
   { key: "ranking", label: "Класация", icon: Activity },
   { key: "combos", label: "Комбинации", icon: Layers3 },
   { key: "evaluation", label: "Проверка на теорията", icon: FlaskConical },
@@ -27,7 +26,7 @@ const nav = [
   { key: "settings", label: "Настройки", icon: Settings2 },
 ] as const;
 type Page = typeof nav[number]["key"];
-const initial: Season = { id: "bulgaria-1", title: "България · Сезон 1", initialTraitors: 3, model: baseline(), participants: [], episodes: [],
+const initial: Season = { id: "bulgaria-1", title: btvSeasonTitle, initialTraitors: 4, model: baseline(), participants: [], episodes: [],
   privateRoles: [], hypothesis: { enabled: false, required: [], excluded: [], breakfastLimit: false } };
 
 export function Workspace() {
@@ -38,9 +37,10 @@ export function Workspace() {
   const [detail, setDetail] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [light, setLight] = useState(false);
-  const [newEpisode, setNewEpisode] = useState(0);
+  const castAttempt = useRef<string | null>(null);
   const seasons = useMemo(() => [...session.seasons].sort((a,b) => a.title.localeCompare(b.title,"bg") || a.id.localeCompare(b.id)), [session.seasons]);
-  const season = seasons.find(s => s.id === seasonId) ?? seasons[0] ?? initial;
+  const primarySeason = seasons.find(s => s.id === initial.id) ?? seasons[0] ?? initial;
+  const season = seasons.find(s => s.id === seasonId) ?? primarySeason;
   const episode = season.episodes.find(e => e.number === selected) ?? episodesThrough(season).at(-1);
   const number = episode?.number ?? 0;
   const history = useMemo(() => forecasts(publicInput(season)), [season]);
@@ -49,7 +49,7 @@ export function Workspace() {
     setLight(localStorage.getItem("traitors-theme") === "light");
     const syncHash = () => {
       const key = window.location.hash.slice(1);
-      setPage(nav.find(n => n.key === key)?.key ?? "dashboard");
+      setPage(key === "votes" || key === "breakfast" ? "episodes" : nav.find(n => n.key === key)?.key ?? "dashboard");
       setDetail(null);
     };
     syncHash();
@@ -57,13 +57,19 @@ export function Workspace() {
     return () => window.removeEventListener("hashchange",syncHash);
   }, []);
 
+  useEffect(() => {
+    if (!["cloud", "local"].includes(session.mode) || session.cached || session.saving || primarySeason.castPreset || castAttempt.current === primarySeason.id) return;
+    castAttempt.current = primarySeason.id;
+    void session.save([{ before: seasons.find(s => s.id === primarySeason.id), after: addBtvCast(primarySeason) }]);
+  }, [primarySeason, seasons, session]);
+
   function go(next: Page) {
     setPage(next); setDetail(null); setMenu(false);
     if (window.location.hash !== "#" + next) window.location.hash = next;
     window.scrollTo(0,0);
   }
   function addEpisode() {
-    setNewEpisode(i => i+1);
+    setSelected(Math.min(999, Math.max(0, ...season.episodes.map(e => e.number)) + 1));
     go("episodes");
   }
   function selectSeason(id: string) {
@@ -82,7 +88,6 @@ export function Workspace() {
   const current = nav.find(n => n.key === page)!;
   const local = session.mode === "local";
   const ready = local || session.mode === "cloud";
-  const eventProps = { season, episode, edit, setNumber: setSelected, addEpisode };
 
   if (!ready) {
     const blocked = session.mode === "denied";
@@ -105,7 +110,7 @@ export function Workspace() {
     <aside className={"sidebar" + (menu ? " expanded" : "")}>
       <Brand/><button className="mobile-close icon-button" aria-label="Затвори менюто" onClick={() => setMenu(false)}><X size={19}/></button>
       <div className="nav-caption">РАБОТНО ПРОСТРАНСТВО</div>
-      <nav aria-label="Основна навигация">{nav.map((item,i) => <div key={item.key} className={i === 5 || i === 8 ? "nav-divider" : ""}>
+      <nav aria-label="Основна навигация">{nav.map((item,i) => <div key={item.key} className={i === 3 || i === 6 ? "nav-divider" : ""}>
         <a href={"#" + item.key} aria-current={page === item.key ? "page" : undefined} className={page === item.key ? "current" : ""}
           onClick={e => { e.preventDefault(); go(item.key); }}><item.icon size={18} strokeWidth={1.65}/><span>{item.label}</span></a></div>)}</nav>
       <div className="sidebar-foot"><span className="foot-icon"><Shield size={18}/></span>
@@ -121,8 +126,8 @@ export function Workspace() {
           <Link className="public-shortcut icon-button" href="/" aria-label="Публична страница" title="Публична страница"><Globe size={17}/></Link>
           <span className="sync" role="status">{local ? <Database size={15}/> : session.cached ? <CloudOff size={15}/> : <Cloud size={15}/>}
             <span>{session.saving ? "Запазване…" : session.cached ? "Офлайн · кеш" : local ? "Локален режим" : "Синхронизирано"}</span></span>
-          <div className="season-picker"><select aria-label="Избран сезон" value={season.id} onChange={e => selectSeason(e.target.value)}>
-            {(seasons.length ? seasons : [initial]).map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select><ChevronDown size={14}/></div>
+          {seasons.length > 1 ? <div className="season-picker"><select aria-label="Избран сезон" value={season.id} onChange={e => selectSeason(e.target.value)}>
+            {seasons.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select><ChevronDown size={14}/></div> : <span className="tag">{season.title}</span>}
         </div>
       </header>
       <main>
@@ -131,13 +136,14 @@ export function Workspace() {
         {session.cached && <div className="local-notice"><CloudOff size={16}/>Показва се кешираният архив. Записването изисква връзка с Firebase.</div>}
         {["ranking","combos","participants"].includes(page) && !!number && <div className="toolbar contextual"><span className="muted">Изглед към</span><EpisodePicker season={season} number={number} change={setSelected}/></div>}
         <fieldset className="content" disabled={session.saving || session.cached} key={season.id + "/" + page}>
-          {page === "dashboard" && <Dashboard season={season} history={history} add={addEpisode} rankingPage={() => go("ranking")} votesPage={() => go("votes")}
+          {page === "dashboard" && <Dashboard season={season} history={history} add={addEpisode} rankingPage={() => go("ranking")} votesPage={() => go("episodes")}
             open={id => { setSelected(0); setDetail(id); }}/>}
-          {page === "participants" && <Participants season={season} save={save} number={number || 1} open={setDetail}/>}
-          {page === "episodes" && <Episodes key={newEpisode} season={season} episode={episode} setNumber={setSelected} edit={edit} go={go} forceAdd={newEpisode > 0}
-            clearForce={() => setNewEpisode(0)}/>}
-          {page === "votes" && <Voting {...eventProps}/>}
-          {page === "breakfast" && <Breakfasts {...eventProps}/>}
+          {page === "participants" && <>
+            {season.castPreset ? <p className="muted"><a href={btvCastSource} target="_blank" rel="noreferrer">Състав на сезона · bTV ↗</a></p> :
+              <div className="toolbar"><button onClick={() => save(addBtvCast(season))}>Зареди състава от bTV</button></div>}
+            <Participants season={season} save={save} number={number || 1} open={setDetail}/>
+          </>}
+          {page === "episodes" && <Episodes season={season} selected={selected} setNumber={setSelected} edit={edit}/>}
           {page === "ranking" && <Rankings season={season} history={history} number={number} open={setDetail}/>}
           {page === "combos" && <Combinations season={season} number={number || 1}/>}
           {page === "evaluation" && <Evaluation season={season}/>}

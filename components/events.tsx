@@ -4,30 +4,27 @@ import { ArrowDown, ArrowUp, Coffee, Gavel, GripVertical, Plus, Trash2 } from "l
 import { filled, leaders, statusAt, tallies } from "../lib/model";
 import type { Ballot, Breakfast, Episode, Participant, Round, Season, Table } from "../lib/types";
 import { VoteChart } from "./charts";
-import { EpisodePicker, type EditEpisode } from "./records";
+import type { EditEpisode } from "./records";
 import { Empty, Field, Heading, Panel, PersonSelect, PickPeople, RoleSelect } from "./ui";
 
-type Props = { season: Season; episode?: Episode; edit: EditEpisode; setNumber: (n: number) => void; addEpisode: () => void };
+type Props = { season: Season; episode: Episode; edit: EditEpisode };
 const uid = () => crypto.randomUUID();
 
-export function Voting({ season, episode, edit, setNumber, addEpisode }: Props) {
+export function Voting({ season, episode, edit }: Props) {
   function newRound(tableId?: string, previous?: Round): Round {
-    const ids = season.participants.filter(p => p.joined <= episode!.number &&
-      statusAt(season, p.id, episode!.number, tableId ?? "new-table").status === "active").map(p => p.id);
+    const ids = season.participants.filter(p => p.joined <= episode.number &&
+      statusAt(season, p.id, episode.number, tableId ?? "new-table").status === "active").map(p => p.id);
     return { id: uid(), eligible: previous?.eligible ?? ids, candidates: previous?.candidates ?? ids, votes: {}, complete: false, notes: "" };
   }
   function saveTable(value: Table) {
-    if (!episode) return Promise.resolve(false);
     return edit({ ...episode, tables: episode.tables.some(t => t.id === value.id) ?
       episode.tables.map(t => t.id === value.id ? value : t) : [...episode.tables, value] });
   }
   return <>
     <Heading title="Кръгла маса" description="Записвайте гласовете, отделните турове и потвърденото прогонване."
-      action={episode && <button className="primary" onClick={() => saveTable({ id: uid(), rounds: [newRound()], decision: null })}><Plus size={18}/> Добави кръгла маса</button>}/>
-    {episode ? <div className="toolbar"><EpisodePicker season={season} number={episode.number} change={setNumber}/></div> :
-      <Panel title="Гласувания"><Empty icon={Gavel} title="Липсва епизод" detail="Добавете епизод, за да започнете."><button className="primary" onClick={addEpisode}>Добави епизод</button></Empty></Panel>}
-    {episode && !episode.tables.length && <Panel title="Гласувания"><Empty icon={Gavel} title="Няма кръгла маса" detail="Добавете запис само ако в епизода е имало кръгла маса."/></Panel>}
-    {episode?.tables.map((table, i) => {
+      action={<button className="primary" onClick={() => saveTable({ id: uid(), rounds: [newRound()], decision: null })}><Plus size={18}/> Добави кръгла маса</button>}/>
+    {!episode.tables.length && <Panel title="Гласувания"><Empty icon={Gavel} title="Няма кръгла маса" detail="Добавете запис само ако в епизода е имало кръгла маса."/></Panel>}
+    {episode.tables.map((table, i) => {
       const people = season.participants.filter(p => p.joined <= episode.number && statusAt(season, p.id, episode.number, table.id).status === "active");
       return <Panel key={table.id} title={"Кръгла маса " + (i+1)} tag={table.decision ? "Потвърдена" : "Чернова"}>
         <TableEditor table={table} people={people} save={saveTable} addRound={r => newRound(table.id, r)} remove={() => {
@@ -92,7 +89,7 @@ function RoundEditor({ round, people, save, remove }: {
   return <div className="stack record">
     <div className="toolbar"><span className="tag">{round.complete ? "Завършен тур" : "Тур в процес"}</span>
       <span className="muted">{Object.keys(round.votes).length} / {round.eligible.length} записа</span>
-      <button type="button" onClick={() => setConfig(!config)}>Състав и правила</button>
+      <button type="button" onClick={() => setConfig(!config)}>Състав и ред на гласуване</button>
       {remove && <button type="button" onClick={remove}>Премахни тура</button>}
     </div>
     {config && <div className="stack inset">
@@ -102,18 +99,18 @@ function RoundEditor({ round, people, save, remove }: {
         void save({ ...round, candidates, complete: false, votes: Object.fromEntries(Object.entries(round.votes).filter(([,v]) => !v.target || candidates.includes(v.target))) }, true)}/>
       <Field label="Правила / бележки за тура"><BlurText key={round.notes} value={round.notes} save={notes => save({ ...round, notes })}/></Field>
     </div>}
-    <p className="muted">Поредният номер по телевизията се попълва по реда на въвеждане и може да се коригира. Въведете реален ред само ако е известен.</p>
-    {round.eligible.length ? <div className="table-wrap"><table>
-      <thead><tr><th>Гласуващ</th><th>За кого гласува?</th><th>Ред по ТВ</th><th>Реален ред</th></tr></thead>
+    {config && <p className="muted">Редът по телевизията се попълва по реда на въвеждане. Попълни реалния ред, ако е известен.</p>}
+    {round.eligible.length ? <div className="table-wrap"><table className={config ? undefined : "simple-vote-table"}>
+      <thead><tr><th>Гласуващ</th><th>За кого гласува?</th>{config && <><th>Ред по ТВ</th><th>Реален ред</th></>}</tr></thead>
       <tbody>{round.eligible.map(voter => {
         const vote: Ballot | undefined = round.votes[voter];
         return <tr key={voter}><td>{name(voter)}</td><td><select aria-label={"Глас на " + name(voter)} value={vote ? vote.target ?? "_none" : ""} disabled={round.complete} onChange={e => setVote(voter,e.target.value)}>
           <option value="">Невъведен</option><option value="_none">Не е гласувал(а)</option>
           {candidates.filter(p => p.id !== voter).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select></td>{(["revealed","cast"] as const).map(key => <td key={key}><OrderField key={String(vote?.[key])} value={vote?.[key] ?? null} disabled={!vote?.target} required={key === "revealed" && !!vote?.target}
+        </select></td>{config && (["revealed","cast"] as const).map(key => <td key={key}><OrderField key={String(vote?.[key])} value={vote?.[key] ?? null} disabled={!vote?.target} required={key === "revealed" && !!vote?.target}
           label={(key === "cast" ? "Реален ред на " : "Ред по ТВ на ") + name(voter)} save={value => voteOrder(voter,key,value)}/></td>)}</tr>;
       })}</tbody>
-    </table></div> : <p className="muted">Изберете гласуващите от „Състав и правила“.</p>}
+    </table></div> : <p className="muted">Изберете гласуващите от „Състав и ред на гласуване“.</p>}
     <div className="toolbar">
       {round.complete ? <button onClick={() => {
         if (window.confirm("Да отворя ли тура за редакция? Ако е решаващ, прогонването ще трябва да се потвърди отново.")) void save({ ...round, complete: false }, true);
@@ -142,7 +139,12 @@ function Decision({ table, round, people, save }: { table: Table; round?: Round;
     <div className="fields">
       <Field label="Прогонен участник"><PersonSelect people={people} value={person} change={setPerson} label="Прогонен участник"/></Field>
       <Field label="Публично разкрита роля"><RoleSelect value={role} change={setRole}/></Field>
-      <Field label={custom ? "Основание за решението (задължително)" : "Основание (по избор)"}><input value={reason} required={custom && !!person} maxLength={8000} onChange={e => setReason(e.target.value)}/></Field>
+      {custom && <Field label="Основание за решението"><select value={reason} onChange={e => setReason(e.target.value)}>
+        <option value="">Избери основание</option>
+        <option value="Решение след равенство">Решение след равенство</option>
+        <option value="Специално правило">Специално правило</option>
+        {current?.reason && !["Решение след равенство","Специално правило"].includes(current.reason) && <option value={current.reason}>{current.reason}</option>}
+      </select></Field>}
     </div>
     <div className="toolbar"><button type="submit" className="primary" disabled={!person || (custom && !reason.trim())}>{current ? "Запази прогонването" : "Потвърди прогонването"}</button>
       {saved && <button type="button" onClick={() => save({ ...table, decision: null })}>Отмени потвърждението</button>}</div>
@@ -163,25 +165,52 @@ function BlurText({ value, save }: { value: string; save: (v: string) => Promise
     onBlur={async () => { if (draft !== value && !(await save(draft))) set(value); }}/>;
 }
 
-export function Breakfasts({ season, episode, edit, setNumber, addEpisode }: Props) {
+export function Breakfasts({ season, episode, edit }: Props) {
   function save(value: Breakfast) {
-    return edit({ ...episode!, breakfasts: episode!.breakfasts.some(b => b.id === value.id) ?
-      episode!.breakfasts.map(b => b.id === value.id ? value : b) : [...episode!.breakfasts,value] });
+    return edit({ ...episode!, breakfasts: episode.breakfasts.some(b => b.id === value.id) ?
+      episode.breakfasts.map(b => b.id === value.id ? value : b) : [...episode.breakfasts,value] });
   }
   return <>
-    <Heading title="Закуска" description="Запишете групите и отбележете доколко е известен редът на пристигане."
-      action={episode && <button className="primary" onClick={() => save({ id: uid(), groups: [], last: null, order: "unknown", notes: "" })}><Plus size={18}/> Добави закуска</button>}/>
-    {episode ? <div className="toolbar"><EpisodePicker season={season} number={episode.number} change={setNumber}/></div> :
-      <Panel title="Пристигания"><Empty icon={Coffee} title="Липсва епизод" detail="Изберете или създайте епизод."><button className="primary" onClick={addEpisode}>Добави епизод</button></Empty></Panel>}
-    {episode && !episode.breakfasts.length && <Panel title="Пристигания"><Empty icon={Coffee} title="Няма запис за закуска" detail="Добавете закуска, ако има наблюдение в този епизод."/></Panel>}
-    {episode?.breakfasts.map((b,i) => <Panel key={b.id} title={"Закуска " + (i+1)}>
-      <BreakfastEditor value={b} people={season.participants.filter(p => p.joined <= episode.number && statusAt(season, p.id, episode.number-1).status === "active")}
+    <Heading title="Закуска" description="Избери кой е влязъл в последната група и откъде е известен редът."
+      action={<button className="primary" onClick={() => save({ id: uid(), groups: [], last: null, order: "unknown", notes: "" })}><Plus size={18}/> Добави закуска</button>}/>
+    {!episode.breakfasts.length && <Panel title="Пристигания"><Empty icon={Coffee} title="Няма запис за закуска" detail="Добавете закуска, ако има наблюдение в този епизод."/></Panel>}
+    {episode.breakfasts.map((b,i) => <Panel key={b.id} title={"Закуска " + (i+1)}>
+      <BreakfastControls value={b} people={season.participants.filter(p => p.joined <= episode.number && statusAt(season, p.id, episode.number-1).status === "active")}
         save={save} remove={() => {
           if (window.confirm("Да премахна ли закуската?")) void edit({ ...episode, breakfasts: episode.breakfasts.filter(x => x.id !== b.id) });
         }}/>
     </Panel>)}
   </>;
 }
+function BreakfastControls({ value, people, save, remove }: { value: Breakfast; people: Participant[]; save: (b: Breakfast) => Promise<boolean>; remove: () => void }) {
+  return <>
+    <LastBreakfastGroup key={JSON.stringify([value.last, value.order, value.groups])} value={value} people={people} save={save}/>
+    <details className="inset stack"><summary>Всички групи и подробности</summary>
+      <BreakfastEditor value={value} people={people} save={save} remove={remove}/>
+    </details>
+  </>;
+}
+function LastBreakfastGroup({ value, people, save }: { value: Breakfast; people: Participant[]; save: (b: Breakfast) => Promise<boolean> }) {
+  const existing = value.groups.find(g => g.id === value.last);
+  const [picked, setPicked] = useState(existing?.people ?? []);
+  const [order, setOrder] = useState(value.order);
+  return <div className="stack">
+    <strong>Последна група</strong>
+    <PickPeople people={people} values={picked} change={setPicked}/>
+    <Field label="Откъде е известен редът"><select value={order} onChange={e => setOrder(e.target.value as Breakfast["order"])}>
+      <option value="unknown">Неизвестен</option><option value="broadcast">Телевизионен монтаж</option><option value="actual">Потвърден реален ред</option>
+    </select></Field>
+    <p className="muted">По подразбиране само потвърденият реален ред участва в точкуването.</p>
+    <div><button className="primary" disabled={!picked.length && !existing} onClick={() => {
+      const last = picked.length ? existing?.id ?? uid() : null;
+      const groups = value.groups.filter(g => g.id !== existing?.id)
+        .map(g => ({ ...g, people: g.people.filter(id => !picked.includes(id)) }));
+      if (last) groups.push({ id: last, people: picked });
+      void save({ ...value, groups, last, order });
+    }}>Запази последната група</button></div>
+  </div>;
+}
+
 function BreakfastEditor({ value, people, save, remove }: { value: Breakfast; people: Participant[]; save: (b: Breakfast) => Promise<boolean>; remove: () => void }) {
   const placed = value.groups.flatMap(g => g.people);
   const unplaced = people.filter(p => !placed.includes(p.id));

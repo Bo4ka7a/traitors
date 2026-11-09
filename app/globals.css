@@ -174,3 +174,16 @@ footer span:first-child { letter-spacing:.1em; }
   .public-bar .brand { padding:0; }
   .public-bar .action-link { padding:.45rem .55rem; font-size:12px; }
 }
+.episode-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(50px,1fr)); gap:8px; }
+.episode-grid button { min-height:44px; padding:5px; }
+.episode-grid button svg { color:var(--muted); }
+.episode-grid button.selected svg { color:var(--gold); }
+.episode-section { margin-top:3px; }
+details > summary { cursor:pointer; font-weight:600; }
+details[open] > summary { margin-bottom:12px; }
+@media (max-width:700px) { .episode-grid { grid-template-columns:repeat(6,minmax(0,1fr)); } }
+@media (max-width:700px) {
+  .simple-vote-table { table-layout:fixed; }
+  .simple-vote-table th,.simple-vote-table td { padding-inline:5px; white-space:normal; overflow-wrap:anywhere; }
+  .simple-vote-table select { width:100%; }
+}
